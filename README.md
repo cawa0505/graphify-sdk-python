@@ -1,67 +1,185 @@
-# graphify-sdk-python
+# Graphify Python SDK
 
-The official **Graphify Python SDK** — Layer 2 external SDK that lets Python
-developers and third-party plugin authors access Graphify's `.toon` topology
-capabilities over the Stdio/JSON-RPC (MCP) protocol.
+Official Python SDK for [Graphify](https://github.com/cawa0505/GraphifySDK) — access
+knowledge graph capabilities over the MCP (Model Context Protocol) via Stdio/JSON-RPC.
 
-## Positioning
+## Requirements
 
-Graphify's plugin ecosystem is two-layered:
+- Python 3.10+
+- `graphify` binary on PATH (or configured path)
 
-1. **Layer 1 — embedded plugin trait** (Rust, in-process): first-party plugins
-   (`graphify-plugin-handoff`, `graphify-plugin-review`, …) implement the
-   `GraphifyPlugin` trait and run directly on Graphify Core's in-memory petgraph.
-2. **Layer 2 — external SDK** (this repo): any-language access to Graphify's
-   topology via Stdio/JSON-RPC, served by graphify-mcp. `graphify-sdk-python`
-   is the first official language implementation.
+## Installation
 
-The first first-class client of this SDK is the revamped Python Code Review MCP
-(`graphify-plugin-review` → `python/review-mcp/`), which upgrades a mature
-Python review tool into a topology-aware reviewer with minimal cost.
+```bash
+pip install graphify-sdk-python
+```
 
-## Core API (draft)
+## Quick Start
 
 ```python
-from graphify_sdk import GraphifyClient
+from graphify_sdk import Client
 
-client = GraphifyClient(workspace_key="...")  # auto-manages graphify-mcp subprocess
+client = Client(project_path="/path/to/your/project")
 
-# Impact radius of a change set, compressed to .toon topology
-radius = await client.get_blast_radius("git diff ...", depth=3)
+# Graph summary
+summary = client.graph_summary()
+print(f"Nodes: {summary.total_nodes}, Edges: {summary.total_edges}")
 
-# Up/downstream call-chain topology of a symbol
-topology = await client.query_symbol_topology("parse_file")
+# Semantic memory query
+result = client.memory_query("find user authentication")
+if result.is_found:
+    for node in result.nodes:
+        print(f"{node.label} ({node.kind}) in {node.source_file}")
+
+# Trace dependency path
+path = client.trace_path(
+    from_="src/models/user.py:class:User",
+    to="src/http/handlers/auth.py:function:login",
+)
+print("Path:", path)
+
+# Query node with depth
+graph = client.query_node(
+    node_id="src/services/auth.py:class:AuthService",
+    depth=2,
+)
+print(f"Found {len(graph.nodes)} related nodes")
+
+# Always clean up
+client.stop()
 ```
 
-- `GraphifyClient(workspace_key)` — Stdio/JSON-RPC transport + process lifecycle
-  management; `workspace_key` (graphify-core v1 contract, SipHash hex) is
-  transparently passed through.
-- `get_blast_radius(git_diff/files, depth=3)` — requests the `.toon`-compressed
-  impact-radius topology from Graphify Core.
-- `query_symbol_topology(symbol_name)` — queries the symbol's call-chain
-  topology.
+## API Reference
 
-## Repository layout
+The SDK wraps all 24+ `graphify` tools.
+
+### Core Graph
+
+| Method | Description | Returns |
+|--------|-------------|---------|
+| `graph_summary()` | Topology metrics | `GraphSummary` |
+| `query_graph(question)` | BFS traversal | `GraphOutput` |
+| `query_node(node_id, ...depth)` | Node query | `GraphOutput` |
+| `trace_path(from_, to)` | Shortest path | `list[str]` |
+| `reindex_file(file_path)` | Reindex file | `ReindexResult` |
+
+### Memory & Relay
+
+| Method | Description | Returns |
+|--------|-------------|---------|
+| `memory_query(query, ...limit)` | Semantic search | `MemoryQueryResult` |
+| `relay_init(project_context, ...kind)` | Init handoff | `dict` |
+| `relay_save(params)` | Save state | `dict` |
+| `relay_close(repo, next)` | Close handoff | `dict` |
+| `relay_switch(repo, ...kind)` | Switch repo | `dict` |
+| `relay_resume(repo, ...kind)` | Resume | `dict` |
+| `relay_status()` | Status summary | `RelayStatus` |
+| `relay_add(file, repo)` | Ingest doc | `dict` |
+
+### OpenDoc
+
+| Method | Description | Returns |
+|--------|-------------|---------|
+| `opendoc_index(...doc_paths)` | Index spec blocks | `dict` |
+| `opendoc_get_context(symbol)` | Get symbol docs | `dict` |
+| `opendoc_audit_drift()` | Audit drift | `dict` |
+
+### Review
+
+| Method | Description | Returns |
+|--------|-------------|---------|
+| `review_ingest(payload)` | Import review | `dict` |
+| `review_get_context(node)` | Query reviews | `dict` |
+| `review_resolve(review_id, reason)` | Resolve review | `dict` |
+| `review_search_crg(...base)` | Search CRG | `dict` |
+
+### Telemetry & Coverage
+
+| Method | Description | Returns |
+|--------|-------------|---------|
+| `telemetry_ingest(source, ...path)` | Import metrics | `dict` |
+| `telemetry_get_context(node, ...radius)` | Query telemetry | `dict` |
+| `coverage_ingest(format, data)` | Import coverage | `dict` |
+| `coverage_get_context(node)` | Query coverage | `CoverageResult` |
+| `coverage_blindspots()` | Low-coverage list | `dict` |
+
+### Plugin Gateway
+
+| Method | Description | Returns |
+|--------|-------------|---------|
+| `plugin_notify(kind)` | Broadcast update | `dict` |
+
+## Architecture
 
 ```
-├── graphify_sdk/            # the SDK package
-├── openspec/                # proposal / design / tasks (docs-first)
-└── README.md / README.zh-TW.md
+Python App → Client → Transport (Stdio/JSON-RPC) → graphify (Rust)
+```
+
+- **Zero external dependencies**: uses only the Python standard library
+- **Synchronous API**: thread-safe, request-response over stdio
+- **Auto workspace key**: derives from project path via CRC32 (cross-SDK consistent)
+- **Lazy process start**: transport spawns `graphify` on first request
+
+## Project Structure
+
+```
+graphify-sdk-python/
+├── graphify_sdk/
+│   ├── __init__.py     # Public API exports
+│   ├── client.py       # Client class — wraps all 24+ MCP tools
+│   ├── transport.py    # Stdio/JSON-RPC transport
+│   ├── errors.py       # Typed error hierarchy
+│   ├── types.py        # Data transfer objects (15+ dataclasses)
+│   └── plugin/
+│       ├── __init__.py
+│       └── host.py     # Plugin SDK — JSON-RPC stdio host
+├── tests/
+│   ├── __init__.py
+│   └── test_client.py
+├── pyproject.toml
+└── README.md
+```
+
+## Plugin SDK
+
+The `plugin` package provides a JSON-RPC stdio host for building Graphify plugins
+in Python. See [graphify_sdk/plugin/host.py](graphify_sdk/plugin/host.py) for details.
+
+```python
+from graphify_sdk.plugin import Host
+
+host = Host()
+host.register_tool(
+    "analyze",
+    lambda args: {"status": "ok", "input": args},
+    input_schema={
+        "type": "object",
+        "properties": {
+            "path": {"type": "string", "description": "Project path"},
+        },
+    },
+    description="Analyze project structure",
+)
+host.run()
+```
+
+## Binary Compilation
+
+For standalone deployment with Nuitka:
+
+```bash
+nuitka --standalone --onefile --output-filename=graphify-tools-py graphify_sdk/__init__.py
 ```
 
 ## Development
 
-- Install: `pip install -e ".[dev]"`
-- Test: `pytest`
-- Lint: `ruff check .`
-- Type: `mypy graphify_sdk`
+```bash
+pip install -e ".[dev]"
+pytest          # Run tests
+ruff check .    # Lint
+mypy graphify_sdk  # Type check
+```
 
-## Ecosystem alignment
+## License
 
-- **SDK family**: sibling of future `graphify-sdk-ts` / `-php` / `-rust` / `-go`
-  (language order: Python first; per-language repos, protocol spec centralized
-  in GraphifyRust).
-- **Contract**: communicates with graphify-mcp via Stdio+JSON-RPC; payload
-  exchanged as `.toon` (TOON serialization shared with graphify-core).
-- **Open-source safe**: no private hostnames, local IPs, or machine paths in
-  version-controlled files.
+MIT
