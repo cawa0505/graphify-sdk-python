@@ -1,6 +1,6 @@
 # Graphify Python SDK
 
-Official Python SDK for [Graphify](https://github.com/cawa0505/GraphifySDK) — access
+Official Python SDK for [Graphify](https://github.com/cawa0505/graphify) — access
 knowledge graph capabilities over the MCP (Model Context Protocol) via Stdio/JSON-RPC.
 
 ## Requirements
