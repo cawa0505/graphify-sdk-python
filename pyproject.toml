@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graphify-sdk"
+version = "0.1.0"
+description = "Graphify Python SDK — access knowledge graph capabilities over MCP Stdio/JSON-RPC"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+keywords = ["graphify", "knowledge-graph", "mcp", "sdk"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries",
+]
+
+[project.urls]
+Homepage = "https://github.com/cawa0505/graphify-sdk-python"
+Repository = "https://github.com/cawa0505/graphify-sdk-python"
+
+[tool.setuptools.packages.find]
+include = ["graphify_sdk*"]
+
+[tool.setuptools.package-data]
+"*" = ["py.typed"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff>=0.1",
+    "mypy>=1.0",
+]
